@@ -1,0 +1,12 @@
+[
+  {"id":"binance-tyo","name":"Binance","cloud":"AWS","region":"ap-northeast-1","city":"Tokyo","country":"Japan","lat":35.6762,"lng":139.6503,"probeUrl":"https://api.binance.com/api/v3/time"},
+  {"id":"binance-sfo","name":"Binance (SFO)","cloud":"AWS","region":"us-west-1","city":"San Francisco","country":"USA","lat":37.7749,"lng":-122.4194,"probeUrl":"https://api.binance.com/api/v3/time"},
+  {"id":"okx-sin","name":"OKX","cloud":"GCP","region":"asia-southeast1","city":"Singapore","country":"Singapore","lat":1.3521,"lng":103.8198,"probeUrl":"https://www.okx.com/"},
+  {"id":"bybit-lon","name":"Bybit","cloud":"Azure","region":"uk-south","city":"London","country":"UK","lat":51.5074,"lng":-0.1278,"probeUrl":"https://api.bybit.com/"},
+  {"id":"deribit-ams","name":"Deribit","cloud":"GCP","region":"europe-west4","city":"Amsterdam","country":"Netherlands","lat":52.3676,"lng":4.9041,"probeUrl":"https://www.deribit.com/"},
+  {"id":"kraken-nyc","name":"Kraken","cloud":"AWS","region":"us-east-1","city":"New York","country":"USA","lat":40.7128,"lng":-74.0060,"probeUrl":"https://api.kraken.com/0/public/Time"},
+  {"id":"huobi-hkg","name":"Huobi","cloud":"Azure","region":"asia-east","city":"Hong Kong","country":"China","lat":22.3193,"lng":114.1694,"probeUrl":"https://api.huobi.pro/"},
+  {"id":"ftx-syd","name":"FTX","cloud":"GCP","region":"australia-southeast1","city":"Sydney","country":"Australia","lat":-33.8688,"lng":151.2093,"probeUrl":"https://ftx.com/"},
+  {"id":"okex-mum","name":"OKEx","cloud":"AWS","region":"ap-south-1","city":"Mumbai","country":"India","lat":19.0760,"lng":72.8777,"probeUrl":"https://www.okex.com/"},
+  {"id":"gateio-gru","name":"Gate.io","cloud":"AWS","region":"sa-east-1","city":"São Paulo","country":"Brazil","lat":-23.5505,"lng":-46.6333,"probeUrl":"https://www.gate.io/"}
+]

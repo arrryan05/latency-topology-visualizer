@@ -1,0 +1,19 @@
+[
+  {"provider":"AWS","code":"us-east-1","name":"US East (N. Virginia)","lat":38.0,"lng":-77.5},
+  {"provider":"AWS","code":"us-west-1","name":"US West (N. California)","lat":37.3,"lng":-121.9},
+  {"provider":"AWS","code":"eu-central-1","name":"EU (Frankfurt)","lat":50.1109,"lng":8.6821},
+  {"provider":"AWS","code":"ap-northeast-1","name":"Asia Pacific (Tokyo)","lat":35.68,"lng":139.76},
+  {"provider":"GCP","code":"us-central1","name":"US Central (Iowa)","lat":41.59,"lng":-93.62},
+  {"provider":"GCP","code":"us-west1","name":"US West (Oregon)","lat":44.06,"lng":-123.08},
+  {"provider":"GCP","code":"europe-west4","name":"Europe (Netherlands)","lat":52.37,"lng":4.90},
+  {"provider":"GCP","code":"asia-southeast1","name":"Asia Southeast (Singapore)","lat":1.35,"lng":103.82},
+  {"provider":"Azure","code":"eastus","name":"East US","lat":37.37,"lng":-79.96},
+  {"provider":"Azure","code":"westeurope","name":"West Europe","lat":53.35,"lng":-6.26},
+  {"provider":"Azure","code":"southeastasia","name":"Southeast Asia (Singapore)","lat":1.35,"lng":103.82},
+  {"provider":"Azure","code":"australiaeast","name":"Australia East (Sydney)","lat":-33.86,"lng":151.21},
+  {"provider":"AWS","code":"ap-south-1","name":"Asia Pacific (Mumbai)","lat":19.07,"lng":72.88},
+  {"provider":"GCP","code":"asia-east1","name":"Asia East (Taiwan)","lat":25.03,"lng":121.56},
+  {"provider":"Azure","code":"eastasia","name":"East Asia (Hong Kong)","lat":22.28,"lng":114.15},
+  {"provider":"AWS","code":"sa-east-1","name":"South America (São Paulo)","lat":-23.55,"lng":-46.63},
+  {"provider":"GCP","code":"australia-southeast1","name":"Australia (Sydney)","lat":-33.86,"lng":151.21}
+]
