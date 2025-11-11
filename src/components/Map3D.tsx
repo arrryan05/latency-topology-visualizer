@@ -17,7 +17,7 @@ import { exportSamplesCSV } from "../lib/storage";
 type MarkerData = { id: string; ex: any; pos: [number, number, number] };
 
 /**
- * Map3D - top-level component
+ * Map3D 
  */
 export default function Map3D() {
   const exchanges = useStore((s) => s.exchanges);
@@ -74,24 +74,24 @@ export default function Map3D() {
   }, []);
 
   return (
-    <div ref={containerRef} className="relative w-full h-[calc(100vh-80px)]">
-      <Canvas camera={{ position: [0, 0, 4.8], fov: 45 }}>
+    <div ref={containerRef} className="fixed inset-0 z-0">
+      <Canvas className="w-full h-full" camera={{ position: [0, 0, 4.8], fov: 45 }}>
         <InnerScene markerData={markerData} regions={regions} />
         <Stars />
       </Canvas>
 
       <ZoomButtons />
-      <PerformancePanel />
+      <div className="absolute right-4 bottom-6 z-40">
+        <PerformancePanel />
+      </div>
       <SelectedCardUI />
     </div>
   );
+
 }
 
 /* ---------------------------
-   InnerScene: arcs built as THREE.Line primitives
-   Region bubbles reverted to prior "bubble + torus ring" style (no Html/labels)
-   ExchangeMarker usage restored as before
-   Adds front/back facing filter so only front hemisphere visuals are shown
+   InnerScene
 ----------------------------*/
 
 function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions: any[] }) {
@@ -101,17 +101,13 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
   const filters = useStore((s) => s.filters);
   const latestLatency = useStore((s) => s.latestLatency);
 
-  // refs for controls & camera
   const controlsRef = useRef<any>(null);
   const cameraRef = useRef<THREE.Camera | null>(null);
 
-  // tiny state used to trigger React re-render at reduced frame frequency
   const [, setTick] = useState(0);
   const frameCounter = useRef(0);
 
-  /* --------------------------
-     HEATMAP (B1) setup
-     -------------------------- */
+  // Heatmap refs (unchanged)
   const heatCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const heatTextureRef = useRef<THREE.CanvasTexture | null>(null);
   const heatSphereRef = useRef<THREE.Mesh | null>(null);
@@ -120,7 +116,7 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
   const lastDrawRef = useRef(0);
 
   const ensureHeatCanvas = () => {
-    if (!typeof window) return null;
+    if (typeof window === "undefined") return null;
     if (!heatCanvasRef.current) {
       const c = document.createElement("canvas");
       c.width = CANVAS_W;
@@ -136,7 +132,6 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
     return { canvas: heatCanvasRef.current!, tex: heatTextureRef.current! };
   };
 
-  // convert lat/lng -> equirectangular canvas xy
   const latLngToUVxy = (lat: number, lng: number) => {
     const u = (lng + 180) / 360;
     const v = 1 - (lat + 90) / 180;
@@ -163,7 +158,6 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
   };
 
   const redrawHeatmap = () => {
-    // throttle to ~6 FPS
     const now = performance.now();
     if (now - lastDrawRef.current < 150) return;
     lastDrawRef.current = now;
@@ -177,7 +171,6 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.globalCompositeOperation = "lighter";
 
-    // Draw gradients per latestLatency entry at exchange positions
     const entries = Object.entries(latestLatency);
     for (const [id, s] of entries) {
       if (!s) continue;
@@ -198,13 +191,10 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
       ctx.fill();
     }
 
-    // commit texture update
     tex.needsUpdate = true;
   };
 
-  /* --------------------------
-     ARCS (exchange -> region) and TOPOLOGY (exchange <-> exchange)
-     -------------------------- */
+  // ARCS & TOPOLOGY refs
   const arcsRef = useRef<Record<string, {
     points: THREE.Vector3[];
     pulse: number;
@@ -222,11 +212,12 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
     pulseMesh?: THREE.Mesh;
   }>>({});
 
-  // register camera & zoom handlers
+  // camera registrar (same as before); exposes reset handler if store supports it
   function CameraRegistrar() {
     const { camera } = useThree();
     cameraRef.current = camera;
     const setZoomHandlers = useStore((s) => s.setZoomHandlers);
+    const setResetCamera = useStore((s: any) => (s.setResetCamera ? s.setResetCamera : undefined));
 
     useEffect(() => {
       if (!setZoomHandlers) return;
@@ -259,13 +250,41 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
       };
 
       setZoomHandlers(handlers);
-      return () => setZoomHandlers({ zoomIn: () => { }, zoomOut: () => { } });
-    }, [setZoomHandlers]);
+
+      if (setResetCamera) {
+        setResetCamera(() => {
+          if (!cameraRef.current || !controlsRef.current) return;
+          const defaultCamPos = new THREE.Vector3(0, 0, 4.8);
+          const defaultTarget = new THREE.Vector3(0, 0, 0);
+          const startPos = cameraRef.current.position.clone();
+          const startTarget = controlsRef.current.target ? controlsRef.current.target.clone() : new THREE.Vector3(0, 0, 0);
+          const duration = 450;
+          const startTime = performance.now();
+          const animateReset = () => {
+            const now = performance.now();
+            const t = Math.min(1, (now - startTime) / duration);
+            const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+            cameraRef.current!.position.lerpVectors(startPos, defaultCamPos, eased);
+            if (controlsRef.current) {
+              const lerpedTarget = new THREE.Vector3().lerpVectors(startTarget, defaultTarget, eased);
+              controlsRef.current.target.copy(lerpedTarget);
+              controlsRef.current.update();
+            }
+            if (t < 1) requestAnimationFrame(animateReset);
+          };
+          requestAnimationFrame(animateReset);
+        });
+      }
+
+      return () => {
+        setZoomHandlers({ zoomIn: () => { }, zoomOut: () => { } });
+        if (setResetCamera) setResetCamera(undefined);
+      };
+    }, [setZoomHandlers, setResetCamera]);
 
     return null;
   }
 
-  // provider color helper
   const providerColor = (provider?: string) => {
     if (!provider) return "#ffcc00";
     const p = provider.toLowerCase();
@@ -282,7 +301,7 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
     const searchLower = (search || "").toLowerCase();
     markerData.forEach((md) => {
       let visible = true;
-      if (providers.length > 0) visible = providers.includes(md.ex.cloud as any);
+      if (providers && providers.length > 0) visible = providers.includes(md.ex.cloud as any);
       if (searchLower) {
         const s = `${md.ex.name} ${md.ex.city ?? ""} ${md.ex.country ?? ""} ${md.ex.region ?? ""}`.toLowerCase();
         visible = visible && s.includes(searchLower);
@@ -292,15 +311,53 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
     return map;
   }, [markerData, filters]);
 
-  // build arcs (exchange -> region) — same as before
+  // cheap facing test (camera looking direction)
+  const isFacingCamera = (worldPos: THREE.Vector3, threshold = 0.05) => {
+    const cam = cameraRef.current;
+    if (!cam) return true;
+    const camDir = new THREE.Vector3();
+    cam.getWorldDirection(camDir);
+    const dirToPoint = worldPos.clone().sub(cam.position).normalize();
+    return camDir.dot(dirToPoint) > threshold;
+  };
+
+  // robust occlusion check: ray from camera -> point intersects globe before reaching point?
+  const isOccludedByGlobe = (worldPos: THREE.Vector3, globeRadius = 1.8) => {
+    const cam = cameraRef.current;
+    if (!cam) return false;
+    const camPos = cam.position.clone();
+    const d = worldPos.clone().sub(camPos); // ray direction to point
+    const a = d.dot(d);
+    const b = 2 * camPos.dot(d);
+    const c = camPos.dot(camPos) - globeRadius * globeRadius;
+    const disc = b * b - 4 * a * c;
+    if (disc <= 0) return false; // no intersection
+    const sqrtD = Math.sqrt(disc);
+    const t1 = (-b - sqrtD) / (2 * a);
+    const t2 = (-b + sqrtD) / (2 * a);
+    // if any positive t in (0,1) then intersection occurs between camera and worldPos
+    const epsilon = 1e-4;
+    if ((t1 > epsilon && t1 < 1 - epsilon) || (t2 > epsilon && t2 < 1 - epsilon)) return true;
+    return false;
+  };
+
+  const isVisible = (worldPos: THREE.Vector3, threshold = 0.05) => {
+    // cheap facing test first
+    if (!isFacingCamera(worldPos, threshold)) return false;
+    // then check occlusion by globe
+    if (isOccludedByGlobe(worldPos)) return false;
+    return true;
+  };
+
+  // build arcs (same logic but ensure frustumCulled = false and immediate setTick)
   useEffect(() => {
-    // dispose prev
     const prev = arcsRef.current;
     Object.values(prev).forEach(a => {
       try {
-        a.line && a.line.geometry && (a.line.geometry as any).dispose && (a.line.geometry as any).dispose();
-        a.mat && a.mat.dispose && a.mat.dispose();
-      } catch { }
+        if (a.line && (a.line as any).parent) (a.line as any).parent.remove(a.line);
+        if (a.line && a.line.geometry && (a.line.geometry as any).dispose) a.line.geometry.dispose();
+        if (a.mat && a.mat.dispose) a.mat.dispose();
+      } catch {}
     });
 
     const out: typeof arcsRef.current = {};
@@ -357,28 +414,32 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
       });
       const line = new THREE.Line(geom, mat);
       line.renderOrder = 2;
+      line.frustumCulled = false;
 
       out[md.id] = { points: pts, pulse: Math.random(), geom, mat, line };
     }
 
     arcsRef.current = out;
+    setTick(t => t + 1);
   }, [markerData, regions]);
 
-  // build topology edges (exchange <-> exchange) — ensure pulseMesh is created & initialized
+  // build topology edges (exchange <-> exchange)
   useEffect(() => {
-    // dispose prev
     const prev = topologyRef.current;
     Object.values(prev).forEach(e => {
       try {
-        e.line && e.line.geometry && (e.line.geometry as any).dispose && (e.line.geometry as any).dispose();
-        e.mat && e.mat.dispose && e.mat.dispose();
-        e.pulseMesh && e.pulseMesh.geometry && (e.pulseMesh.geometry as any).dispose && (e.pulseMesh.geometry as any).dispose();
-      } catch { }
+        if (e.line && (e.line as any).parent) (e.line as any).parent.remove(e.line);
+        if (e.pulseMesh && (e.pulseMesh as any).parent) (e.pulseMesh as any).parent.remove(e.pulseMesh);
+        if (e.line && e.line.geometry && (e.line.geometry as any).dispose) e.line.geometry.dispose();
+        if (e.mat && e.mat.dispose) e.mat.dispose();
+        if (e.pulseMesh && e.pulseMesh.geometry && (e.pulseMesh.geometry as any).dispose) e.pulseMesh.geometry.dispose();
+      } catch {}
     });
 
     const out: typeof topologyRef.current = {};
     if (markerData.length < 2) {
       topologyRef.current = out;
+      setTick(t => t + 1);
       return;
     }
 
@@ -403,8 +464,8 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
 
         const a = aMd.posVec.clone().multiplyScalar(R + EPS);
         const b = new THREE.Vector3(...n.md.pos).normalize().multiplyScalar(R + EPS);
-        const mid = a.clone().add(b).multiplyScalar(0.5).normalize().multiplyScalar(R + ARC_HEIGHT + Math.min(0.35, n.ang * 0.6));
 
+        const mid = a.clone().add(b).multiplyScalar(0.5).normalize().multiplyScalar(R + ARC_HEIGHT + Math.min(0.35, n.ang * 0.6));
         const curve = new THREE.CatmullRomCurve3([a, mid, b]);
         const pts = curve.getPoints(80).map((p) => {
           const nrm = p.clone().normalize();
@@ -423,44 +484,37 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
         });
         const line = new THREE.Line(geom, mat);
         line.renderOrder = 1;
+        line.frustumCulled = false;
 
-        // create pulse mesh and position it at the first point to initialize
         const sphereGeom = new THREE.SphereGeometry(0.02, 8, 8);
         const sphereMat = new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 1 });
         const pulseMesh = new THREE.Mesh(sphereGeom, sphereMat);
         pulseMesh.renderOrder = 3;
-        // initialize position to first point so it shows up immediately
-        if (pts.length > 0) {
-          pulseMesh.position.set(pts[0].x, pts[0].y, pts[0].z);
-        }
+        pulseMesh.frustumCulled = false;
+        if (pts.length > 0) pulseMesh.position.set(pts[0].x, pts[0].y, pts[0].z);
 
         out[key] = { points: pts, pulse: Math.random() * 0.9, geom, mat, line, pulseMesh };
       }
     }
 
     topologyRef.current = out;
+    setTick(t => t + 1);
   }, [markerData]);
 
-  // helper: determine if a world position is roughly in front of camera
-  const isFacingCamera = (worldPos: THREE.Vector3, threshold = 0.05) => {
-    const cam = cameraRef.current;
-    if (!cam) return true;
-    const camDir = new THREE.Vector3();
-    cam.getWorldDirection(camDir);
-    const dirToPoint = worldPos.clone().sub(cam.position).normalize();
-    return camDir.dot(dirToPoint) > threshold;
+  const latencyColor = (ms: number) => {
+    if (ms < 80) return "#00ff7f";
+    if (ms < 160) return "#ffd700";
+    return "#ff6347";
   };
 
-  // animate pulses, update materials, toggle visibility, and update heatmap
   useFrame((_, delta) => {
     frameCounter.current++;
 
-    // redraw heatmap if enabled (throttled inside)
     if (filters.showHeatmap) {
-      try { redrawHeatmap(); } catch (e) { /* ignore */ }
+      try { redrawHeatmap(); } catch {}
     }
 
-    // arcs pulse update
+    // arcs update: also hide arcs whose source exchange is not visible
     for (const id of Object.keys(arcsRef.current)) {
       const arc = arcsRef.current[id];
       const sample = latestLatency[id];
@@ -468,14 +522,30 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
       const speed = 0.6 * (200 / Math.max(latencyMs, 10)) + 0.2;
       arc.pulse = (arc.pulse + delta * speed) % 1.0;
       const c = latencyColor(latencyMs);
-      try { arc.mat && arc.mat.color && arc.mat.color.set(c); } catch { }
-      if (arc.points && arc.line && cameraRef.current) {
-        const mid = arc.points[Math.floor(arc.points.length / 2)];
-        arc.line.visible = isFacingCamera(mid, 0.06);
+      try { arc.mat && arc.mat.color && arc.mat.color.set(c); } catch {}
+
+      // determine source exchange visibility: find marker pos for this id
+      const srcMd = markerData.find(m => m.id === id);
+      const srcPos = srcMd ? new THREE.Vector3(...srcMd.pos) : null;
+
+      // if source is occluded -> hide whole arc (and pulse)
+      if (srcPos && cameraRef.current) {
+        const visible = isVisible(srcPos, 0.06);
+        if (arc.line) arc.line.visible = visible && isFacingCamera(arc.points[Math.floor(arc.points.length/2)], 0.06);
+      }
+
+      // also hide pulse spheres if pulse position itself is occluded
+      if (arc.points && arc.points.length > 0) {
+        const midIdx = Math.floor(arc.pulse * (arc.points.length - 1));
+        const pulsePos = arc.points[midIdx];
+        // pulse visible only if visible and not occluded
+        const showPulse = cameraRef.current ? isVisible(pulsePos, 0.06) : true;
+        // don't render mesh here — the JSX will check isVisible when deciding to render it
+        // material color updated above
       }
     }
 
-    // topology pulse update
+    // topology pulse update: require BOTH endpoints visible to show edge
     if (filters.showTopology) {
       for (const key of Object.keys(topologyRef.current)) {
         const edge = topologyRef.current[key];
@@ -483,26 +553,27 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
         edge.pulse = (edge.pulse + delta * speed) % 1.0;
         const idx = Math.floor(edge.pulse * (edge.points.length - 1));
         const p = edge.points[Math.max(0, Math.min(edge.points.length - 1, idx))];
-        if (edge.pulseMesh) {
-          edge.pulseMesh.position.set(p.x, p.y, p.z);
-        }
-        try { edge.mat && edge.mat.color && edge.mat.color.set("#9CA3AF"); } catch { }
-        if (edge.points && edge.line && cameraRef.current) {
-          const mid = edge.points[Math.floor(edge.points.length / 2)];
-          const vis = isFacingCamera(mid, 0.06);
-          edge.line.visible = vis;
-          if (edge.pulseMesh) edge.pulseMesh.visible = vis;
-        }
+        if (edge.pulseMesh) edge.pulseMesh.position.set(p.x, p.y, p.z);
+        try { edge.mat && edge.mat.color && edge.mat.color.set("#9CA3AF"); } catch {}
+
+        // endpoint ids are in the key (idA::idB)
+        const [aId, bId] = key.split("::");
+        const aMd = markerData.find(m => m.id === aId);
+        const bMd = markerData.find(m => m.id === bId);
+        const aPos = aMd ? new THREE.Vector3(...aMd.pos) : null;
+        const bPos = bMd ? new THREE.Vector3(...bMd.pos) : null;
+        const bothVisible = (aPos && isVisible(aPos, 0.06)) && (bPos && isVisible(bPos, 0.06));
+        if (edge.line) edge.line.visible = !!bothVisible;
+        if (edge.pulseMesh) edge.pulseMesh.visible = !!bothVisible;
       }
     }
 
-    // every few frames update JSX-visible parts (markers/regions)
     if (frameCounter.current % 6 === 0) {
       setTick(t => t + 1);
     }
   });
 
-  // selection camera focus
+  // selection focus (unchanged)
   useEffect(() => {
     if (!selectedId) return;
     const md = markerData.find((m) => m.id === selectedId);
@@ -533,32 +604,31 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
     requestAnimationFrame(animate);
   }, [selectedId, markerData]);
 
-  const latencyColor = (ms: number) => {
-    if (ms < 80) return "#00ff7f";
-    if (ms < 160) return "#ffd700";
-    return "#ff6347";
-  };
-
-  // cleanup heat texture on unmount
   useEffect(() => {
     return () => {
       try {
-        if (heatTextureRef.current) {
-          heatTextureRef.current.dispose();
-          heatTextureRef.current = null;
-        }
-        if (heatCanvasRef.current) {
-          heatCanvasRef.current = null;
-        }
-      } catch { }
+        Object.values(arcsRef.current).forEach(a => {
+          if (a.line && (a.line as any).parent) (a.line as any).parent.remove(a.line);
+          if (a.line && a.line.geometry && (a.line.geometry as any).dispose) a.line.geometry.dispose();
+          if (a.mat && a.mat.dispose) a.mat.dispose();
+        });
+        Object.values(topologyRef.current).forEach(e => {
+          if (e.line && (e.line as any).parent) (e.line as any).parent.remove(e.line);
+          if (e.pulseMesh && (e.pulseMesh as any).parent) (e.pulseMesh as any).parent.remove(e.pulseMesh);
+          if (e.line && e.line.geometry && (e.line.geometry as any).dispose) e.line.geometry.dispose();
+          if (e.mat && e.mat.dispose) e.mat.dispose();
+          if (e.pulseMesh && e.pulseMesh.geometry && (e.pulseMesh.geometry as any).dispose) e.pulseMesh.geometry.dispose();
+        });
+        if (heatTextureRef.current) { heatTextureRef.current.dispose(); heatTextureRef.current = null; }
+        heatCanvasRef.current = null;
+      } catch {}
     };
   }, []);
 
-  // ensure canvas/texture created when heatmap toggled on
   useEffect(() => {
     if (filters.showHeatmap) {
       ensureHeatCanvas();
-      try { redrawHeatmap(); } catch { }
+      try { redrawHeatmap(); } catch {}
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.showHeatmap]);
@@ -570,74 +640,57 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
       <ambientLight intensity={0.6} />
       <directionalLight position={[10, 10, 5]} intensity={0.9} />
 
+      <color attach="background" args={["#87CEEB"]} />
+
       {/* Globe */}
       <mesh>
         <sphereGeometry args={[1.8, 64, 64]} />
         {mapTex ? <meshStandardMaterial map={mapTex} metalness={0} roughness={0.9} /> : <meshStandardMaterial color="#0b3d91" />}
       </mesh>
 
-      {/* Heatmap overlay sphere */}
+      {/* Heatmap */}
       {filters.showHeatmap && heatTextureRef.current && (
         <mesh ref={heatSphereRef} position={[0, 0, 0]}>
           <sphereGeometry args={[1.805, 64, 64]} />
-          <meshBasicMaterial
-            map={heatTextureRef.current}
-            transparent
-            opacity={0.85}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-          />
+          <meshBasicMaterial map={heatTextureRef.current} transparent opacity={0.85} blending={THREE.AdditiveBlending} depthWrite={false} />
         </mesh>
       )}
 
-      {/* Regions (soft translucent bubble + torus ring) - only show if facing camera */}
-      {filters.showRegions &&
-        regions?.map((r: any, i: number) => {
-          const R = 1.8;
-          const v = new THREE.Vector3(...latLngToVector3(r.lat, r.lng, R)).normalize();
-          const offset = 0.045;
-          const pos = v.clone().multiplyScalar(R + offset);
-          const col = providerColor(r.provider);
-          const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.clone().normalize());
-          const facing = cameraRef.current ? isFacingCamera(pos, 0.06) : true;
-          if (!facing) return null;
-          return (
-            <group key={`region-${i}`} position={[pos.x, pos.y, pos.z]}>
-              <mesh>
-                <sphereGeometry args={[0.18, 32, 32]} />
-                <meshStandardMaterial
-                  color={col}
-                  transparent
-                  opacity={0.25}
-                  emissive={col}
-                  emissiveIntensity={0.9}
-                  metalness={0}
-                  roughness={0.5}
-                  depthWrite={false}
-                  blending={THREE.AdditiveBlending}
-                />
-              </mesh>
-              <mesh quaternion={q}>
-                <torusGeometry args={[0.08, 0.008, 8, 64]} />
-                <meshStandardMaterial
-                  color={col}
-                  transparent
-                  opacity={0.12}
-                  emissive={col}
-                  emissiveIntensity={1.1}
-                  metalness={0.1}
-                  roughness={0.2}
-                  depthWrite={false}
-                />
-              </mesh>
-            </group>
-          );
-        })}
+      {/* Regions: bubble only */}
+      {filters.showRegions && regions?.map((r: any, i: number) => {
+        const R = 1.8;
+        const v = new THREE.Vector3(...latLngToVector3(r.lat, r.lng, R)).normalize();
+        const offset = 0.045;
+        const pos = v.clone().multiplyScalar(R + offset);
+        const col = providerColor(r.provider);
+        const facing = cameraRef.current ? isVisible(pos, 0.06) : true;
+        if (!facing) return null;
+        return (
+          <group key={`region-${i}`} position={[pos.x, pos.y, pos.z]}>
+            <mesh>
+              <sphereGeometry args={[0.18, 32, 32]} />
+              <meshStandardMaterial color={col} transparent opacity={0.25} emissive={col} emissiveIntensity={0.9} metalness={0} roughness={0.5} depthWrite={false} blending={THREE.AdditiveBlending} />
+            </mesh>
+          </group>
+        );
+      })}
 
-      {/* Arcs + pulses (exchange->region) */}
+      {/* Arcs + pulses - skip if source exchange occluded */}
       {Object.entries(arcsRef.current).map(([exId, arcData]) => {
         const pts = arcData.points;
         if (!pts || pts.length < 2) return null;
+
+        // find source exchange pos
+        const srcMd = markerData.find(m => m.id === exId);
+        const srcPos = srcMd ? new THREE.Vector3(...srcMd.pos) : null;
+        const sourceVisible = srcPos ? isVisible(srcPos, 0.06) : true;
+
+        if (!sourceVisible) {
+          // hide arc primitive too
+          if (arcData.line) arcData.line.visible = false;
+          return null;
+        }
+
         const idx = Math.floor(arcData.pulse * (pts.length - 1));
         const pos = pts[idx];
         const sample = latestLatency[exId];
@@ -647,7 +700,7 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
         return (
           <group key={`arc-${exId}`} renderOrder={2}>
             {arcData.line ? <primitive object={arcData.line} /> : null}
-            {cameraRef.current && !isFacingCamera(pos, 0.06) ? null : (
+            {cameraRef.current && !isVisible(pos, 0.06) ? null : (
               <mesh position={[pos.x, pos.y, pos.z]} renderOrder={3}>
                 <sphereGeometry args={[0.035, 10, 10]} />
                 <meshStandardMaterial emissive={color} emissiveIntensity={1.2} color={color} depthTest={false} depthWrite={false} />
@@ -657,35 +710,33 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
         );
       })}
 
-      {/* Topology edges (exchange <-> exchange) */}
-      {filters.showTopology &&
-        Object.entries(topologyRef.current).map(([k, edge]) => {
-          return (
-            <group key={`topo-${k}`} renderOrder={1}>
-              {edge.line ? <primitive object={edge.line} /> : null}
-              {edge.pulseMesh ? <primitive object={edge.pulseMesh} /> : null}
-            </group>
-          );
-        })}
-
-      {/* Markers: only render markers that face camera */}
-      {markerData.map(({ id, ex, pos }) => {
-        const world = new THREE.Vector3(...pos);
-        const facing = cameraRef.current ? isFacingCamera(world, 0.06) : true;
-        if (!facing) return null;
+      {/* Topology edges: show only when both endpoints visible */}
+      {filters.showTopology && Object.entries(topologyRef.current).map(([k, edge]) => {
+        const [aId, bId] = k.split("::");
+        const aMd = markerData.find(m => m.id === aId);
+        const bMd = markerData.find(m => m.id === bId);
+        const aPos = aMd ? new THREE.Vector3(...aMd.pos) : null;
+        const bPos = bMd ? new THREE.Vector3(...bMd.pos) : null;
+        const bothVisible = aPos && bPos ? (isVisible(aPos, 0.06) && isVisible(bPos, 0.06)) : false;
+        if (!bothVisible) return null;
         return (
-          <ExchangeMarker
-            key={id}
-            exchange={ex}
-            position={pos}
-            color={providerColor(ex.cloud)}
-            onClick={() => setSelected(id)}
-            visible={visibleMap[id]}
-          />
+          <group key={`topo-${k}`} renderOrder={1}>
+            {edge.line ? <primitive object={edge.line} /> : null}
+            {edge.pulseMesh ? <primitive object={edge.pulseMesh} /> : null}
+          </group>
         );
       })}
 
-      {/* Controls */}
+      {/* Markers: only render if visible (not occluded) */}
+      {markerData.map(({ id, ex, pos }) => {
+        const world = new THREE.Vector3(...pos);
+        const facing = cameraRef.current ? isVisible(world, 0.06) : true;
+        if (!facing) return null;
+        return (
+          <ExchangeMarker key={id} exchange={ex} position={pos} color={providerColor(ex.cloud)} onClick={() => setSelected(id)} visible={visibleMap[id]} />
+        );
+      })}
+
       <OrbitControls ref={controlsRef} makeDefault enablePan enableRotate enableZoom={false} />
     </>
   );
@@ -693,21 +744,31 @@ function InnerScene({ markerData, regions }: { markerData: MarkerData[]; regions
 
 
 
-
 /* ---------------------------
-   SelectedCardUI (outside Canvas) - centered on screen when shown
-   LatencyChart will therefore be visually in the middle
+   SelectedCardUI 
 ----------------------------*/
-function SelectedCardUI() {
+
+export function SelectedCardUI() {
   const selectedId = useStore((s) => s.selectedExchangeId);
   const exchanges = useStore((s) => s.exchanges);
   const setSelected = useStore((s) => s.setSelectedExchangeId);
-  const ex = exchanges.find((e) => e.id === selectedId);
+  const resetCamera = useStore((s) => s.resetCamera);
   const [compareWith, setCompareWith] = useState<string | null>(null);
 
+  const ex = exchanges.find((e) => e.id === selectedId);
   if (!ex) return null;
 
   const otherExchanges = exchanges.filter((e) => e.id !== ex.id);
+
+  const onClose = () => {
+    // ask the scene to reset camera first, then close the card
+    try {
+      resetCamera && resetCamera();
+    } catch (e) {
+      console.warn("resetCamera failed", e);
+    }
+    setSelected(null);
+  };
 
   const downloadCSV = async () => {
     const to = new Date();
@@ -732,17 +793,16 @@ function SelectedCardUI() {
   };
 
   return (
-    <div
-      className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white/95 p-4 rounded shadow-md w-[min(85vw,720px)] z-50"
-      role="dialog"
-      aria-modal="true"
-    >
+    // center the card in the viewport (both axes)
+    <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 w-[92vw] max-w-2xl bg-white/80 p-4 rounded shadow-md">
       <div className="flex justify-between items-start">
         <div>
           <div className="font-semibold">{ex.name}</div>
           <div className="text-xs text-slate-600">{ex.city ? `${ex.city}, ` : ""}{ex.country}</div>
         </div>
-        <button onClick={() => setSelected(null)} className="text-slate-500 hover:text-slate-800">✕</button>
+
+        {/* onClose now calls resetCamera + hides UI */}
+        <button onClick={onClose} className="text-slate-500 hover:text-slate-800">✕</button>
       </div>
 
       <div className="mt-3">
@@ -765,10 +825,11 @@ function SelectedCardUI() {
           </select>
         </div>
 
-        <div className="h-[52vh] overflow-hidden rounded" style={{ background: "transparent" }}>
+        <div className="h-64 overflow-hidden rounded" style={{ background: "transparent" }}>
           <LatencyChart dstExchangeId={ex.id} compareDstExchangeId={compareWith} />
         </div>
       </div>
     </div>
   );
 }
+

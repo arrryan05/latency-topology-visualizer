@@ -23,7 +23,7 @@ export default function PerformancePanel() {
   };
 
   return (
-    <div className="absolute right-4 top-20 z-40 w-64 bg-white/95 p-3 rounded shadow-md text-sm">
+    <div className="absolute right-4 top-20 z-40 w-64 bg-white/20 p-3 rounded shadow-md text-sm">
       <div className="flex items-center justify-between mb-2">
         <div className="font-medium">Status</div>
         <div className="text-xs text-slate-600">Live</div>

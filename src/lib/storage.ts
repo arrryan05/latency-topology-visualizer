@@ -1,7 +1,4 @@
 // src/lib/storage.ts
-// Lightweight IndexedDB wrapper for storing latency samples.
-// Sample shape: { dstExchangeId: string, ms: number, ts: string (ISO), ok: boolean, meta?: any }
-
 const DB_NAME = "latency-topology-db";
 const DB_VERSION = 1;
 const STORE_NAME = "samples";
