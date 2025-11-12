@@ -2,6 +2,11 @@
 
 **Latency Topology Visualizer** is a Next.js + TypeScript project that renders an interactive 3D globe to visualize cryptocurrency exchange server locations, cloud provider regions, real-time latency and historical trends. It’s built to inspect network performance quickly and intuitively with various crypto exchanges across the globe.
 
+## Architecture & approach
+
+Realtime latency samples are produced by a probe service and streamed over a WebSocket to the frontend. The frontend (Next.js + React + @react-three/fiber) consumes the WS stream (connectLatencyStream) and writes the latest values into a local Zustand store (latestLatency). 
+All visual logic runs in the browser: arcs (exchange→region), topology (exchange↔exchange), client-side heatmap (equirectangular canvas → CanvasTexture), pulse animations, and selection/historical charts. CSV export and historical reads are handled by your existing storage helpers.
+
 ## What’s implemented
 
 * **3D Globe & Controls** — High-fidelity globe rendered with `three.js` via `@react-three/fiber` and `@react-three/drei`. Supports smooth orbit, pan, zoom buttons, touch gestures and programmatic camera transitions.
@@ -12,10 +17,6 @@
 * **Heatmap Overlay** — Offscreen canvas draws additive radial gradients per exchange sample; mapped to a slightly larger sphere as a `CanvasTexture`. Redraws are throttled (~6 FPS) for performance.
 * **Historical Trends & Exports** — `LatencyChart` supports selectable ranges (1h, 24h, 7d, 30d), with basic stats (min/max/avg) and CSV export for samples.
 * **Controls & Search** — Filter by provider, toggle layers (regions/heatmap/topology), Fuse.js search, zoom controls and demo mode.
-
-## Architecture & approach
-
-Single-page client application. State managed with `zustand`; heavy geometry uses stable `BufferGeometry` / `THREE.Line` primitives and explicit disposal to avoid memory leaks. Heatmap uses canvas → texture mapping to avoid expensive per-frame GPU work. Front/back culling is implemented via camera-facing dot products to prevent rendering of occluded objects.
 
 ## Tech stack
 
