@@ -1,6 +1,6 @@
 # Latency Topology Visualizer
 
-**Latency Topology Visualizer** is a Next.js + TypeScript project that renders an interactive 3D globe to visualize cryptocurrency exchange server locations, cloud provider regions, real-time latency and historical trends. It’s built for engineers and SREs to inspect network performance quickly and intuitively.
+**Latency Topology Visualizer** is a Next.js + TypeScript project that renders an interactive 3D globe to visualize cryptocurrency exchange server locations, cloud provider regions, real-time latency and historical trends. It’s built to inspect network performance quickly and intuitively with various crypto exchanges across the globe.
 
 ## What’s implemented
 
